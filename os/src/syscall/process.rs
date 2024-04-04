@@ -51,7 +51,7 @@ pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
     let vpn = virtual_addr.floor();
     let vpo = virtual_addr.page_offset();
     let page_table = PageTable::from_token(current_user_token());
-    let mut pa = page_table.translate(vpn).unwrap().ppn().into();
+    let mut pa: PhysAddr = page_table.translate(vpn).unwrap().ppn().into();
     pa.0 += vpo;
     pa
 }
