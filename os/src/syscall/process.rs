@@ -49,9 +49,11 @@ pub fn sys_yield() -> isize {
 /// transform addr from virtual to physical
 pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
     let vpn = virtual_addr.floor();
+    let vpo = virtual_addr.page_offset();
     let page_table = PageTable::from_token(current_user_token());
-    let ppn = page_table.translate(vpn).unwrap().ppn();
-    PhysAddr::from(ppn)
+    let mut pa = page_table.translate(vpn).unwrap().ppn().into();
+    pa.0 += vpo;
+    pa
 }
 
 /// get time with second and microsecond`
@@ -59,9 +61,9 @@ pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    let virtual_addr = VirtAddr(_ts as usize);
-    let physical_addr = vir_to_phy(virtual_addr);
+    let physical_addr = vir_to_phy(VirtAddr(_ts as usize));
     let physical_ts = physical_addr.0 as *mut TimeVal;
+
     let us = get_time_us();
     unsafe {
         *physical_ts = TimeVal {
@@ -77,9 +79,9 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    let virtual_addr = VirtAddr(_ti as usize);
-    let physical_addr = vir_to_phy(virtual_addr);
+    let physical_addr = vir_to_phy(VirtAddr(_ti as usize));
     let physical_ti = physical_addr.0 as *mut TaskInfo;
+
     let ms = get_time_ms();
     unsafe {
         *physical_ti = TaskInfo {
@@ -94,8 +96,8 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 // TODO: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    let virtual_addr = VirtAddr(_start);
-
+    let _virtual_addr = VirtAddr(_start);
+    -1
 }
 
 // TODO: Implement munmap.
