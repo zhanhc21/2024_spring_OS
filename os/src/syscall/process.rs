@@ -47,16 +47,11 @@ pub fn sys_yield() -> isize {
 }
 
 /// transform addr from virtual to physical
-pub fn vir_to_phy(virtual_addr: VirtAddr) -> Option<PhysAddr> {
+pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
     let vpn = virtual_addr.floor();
-    let option_entry = PageTable::from_token(current_user_token()).translate(vpn);
-    match option_entry {
-        None => { None }
-        Some(entry) => {
-            let ppn = entry.ppn();
-            Some(From::from(ppn))
-        }
-    }
+    let page_table = PageTable::from_token(current_user_token());
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    PhysAddr::from(ppn)
 }
 
 /// get time with second and microsecond`
@@ -65,19 +60,16 @@ pub fn vir_to_phy(virtual_addr: VirtAddr) -> Option<PhysAddr> {
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
     let virtual_addr = VirtAddr(_ts as usize);
-    if let Some(physical_addr) = vir_to_phy(virtual_addr) {
-        let physical_ts = physical_addr.0 as *mut TimeVal;
-        let us = get_time_us();
-        unsafe {
-            *physical_ts = TimeVal {
-                sec: us / 1_000_000,
-                usec: us % 1_000_000,
-            };
-        }
-        0
-    } else {
-        -1
+    let physical_addr = vir_to_phy(virtual_addr);
+    let physical_ts = physical_addr.0 as *mut TimeVal;
+    let us = get_time_us();
+    unsafe {
+        *physical_ts = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
     }
+    0
 }
 
 /// Finish sys_task_info to pass testcases
@@ -86,26 +78,24 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
     let virtual_addr = VirtAddr(_ti as usize);
-    if let Some(physical_addr) = vir_to_phy(virtual_addr) {
-        let physical_ti = physical_addr.0 as *mut TaskInfo;
-        let ms = get_time_ms();
-        unsafe {
-            *physical_ti = TaskInfo {
-                status: TaskStatus::Running,
-                syscall_times: get_syscall_times(),
-                time: ms - get_start_time(),
-            };
-        }
-        0
-    } else {
-        -1
+    let physical_addr = vir_to_phy(virtual_addr);
+    let physical_ti = physical_addr.0 as *mut TaskInfo;
+    let ms = get_time_ms();
+    unsafe {
+        *physical_ti = TaskInfo {
+            status: TaskStatus::Running,
+            syscall_times: get_syscall_times(),
+            time: ms - get_start_time(),
+        };
     }
+    0
 }
 
 // TODO: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    let virtual_addr = VirtAddr(_start);
+
 }
 
 // TODO: Implement munmap.
