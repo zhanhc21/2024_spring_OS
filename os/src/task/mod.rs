@@ -24,6 +24,7 @@ pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 use crate::config::MAX_SYSCALL_NUM;
+use crate::mm::{MapPermission, VirtAddr};
 use crate::timer::get_time_ms;
 
 /// The task manager, where all the tasks are managed.
@@ -180,6 +181,52 @@ impl TaskManager {
         let cur = inner.current_task;
         inner.tasks[cur].start_time
     }
+
+    /// mmap
+    fn mmap(&self, _start: usize, _len: usize, _port: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let id = inner.current_task;
+        let cur = &mut inner.tasks[id];
+
+        let va_start = VirtAddr(_start);
+        let va_end = VirtAddr(_start + _len);
+        let mut vpn_start = va_start.floor();
+        let vpn_end = va_end.ceil();
+
+        while vpn_start != vpn_end {
+            let pte = cur.memory_set.translate(vpn_start).unwrap();
+            if pte.is_valid() {
+                return -1;
+            }
+            vpn_start.0 += 1;
+        }
+        let mut map_permission: MapPermission = MapPermission::from_bits_truncate((_port as u8) << 1);
+        map_permission |= MapPermission::U;
+        cur.memory_set.insert_framed_area(va_start, va_end, map_permission);
+        0
+    }
+
+    /// munmap
+    fn munmap(&self, _start: usize, _len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let id = inner.current_task;
+        let cur = &mut inner.tasks[id];
+
+        let va_start = VirtAddr(_start);
+        let va_end = VirtAddr(_start + _len);
+        let mut vpn_start = va_start.floor();
+        let vpn_end = va_end.ceil();
+
+        while vpn_start != vpn_end {
+            let pte = cur.memory_set.translate(vpn_start).unwrap();
+            if !pte.is_valid() {
+                return -1
+            }
+            vpn_start.0 += 1;
+            cur.memory_set.munmap(vpn_start);
+        }
+        0
+    }
 }
 
 /// Run the first task in task list.
@@ -243,5 +290,15 @@ pub fn get_syscall_times() -> [u32; 500] {
 /// get start time of current task
 pub fn get_start_time() -> usize {
     return TASK_MANAGER.get_start_time()
+}
+
+/// mmap
+pub fn mmap(_start: usize, _len: usize, _port: usize) -> isize {
+    return TASK_MANAGER.mmap(_start, _len, _port)
+}
+
+/// munmap
+pub fn munmap(_start: usize, _len: usize) -> isize {
+    return TASK_MANAGER.munmap(_start, _len)
 }
 
