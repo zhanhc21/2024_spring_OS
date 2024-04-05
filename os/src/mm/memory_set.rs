@@ -71,7 +71,7 @@ impl MemorySet {
                 let start = area.vpn_range.get_start().0;
                 let end = area.vpn_range.get_end().0;
                 // 找到vpn所在的area
-                if (start <= vpn.0) && (vpn.0 <= end) {
+                if (start <= vpn) && (vpn <= end) {
                     area.unmap_one(&mut self.page_table, VirtPageNum(vpn));
 
                 }
