@@ -194,12 +194,14 @@ impl TaskManager {
         let vpn_end = va_end.ceil();
 
         while vpn_start != vpn_end {
-            let pte = cur.memory_set.translate(vpn_start).unwrap();
-            if pte.is_valid() {
-                return -1
+            if let Some(pte) = cur.memory_set.translate(vpn_start) {
+                if pte.is_valid() {
+                    return -1
+                }
+                vpn_start.step();
             }
-            vpn_start.0 += 1;
         }
+
         let mut map_permission: MapPermission = MapPermission::from_bits_truncate((_port as u8) << 1);
         map_permission |= MapPermission::U;
         cur.memory_set.insert_framed_area(va_start, va_end, map_permission);

@@ -3,7 +3,7 @@ use crate::{
     config::MAX_SYSCALL_NUM,
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-        current_user_token, get_start_time, get_syscall_times //, mmap, munmap
+        current_user_token, get_start_time, get_syscall_times, mmap, munmap
     },
     timer::{
         get_time_ms, get_time_us
@@ -97,11 +97,11 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 /// mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    // let virtual_addr = VirtAddr(_start);
-    // // 对齐 / 其余位为0 / 有意义内存
-    // if virtual_addr.aligned() && (_port & !0x7 == 0) && (_port & 0x7 != 0) {
-    //     mmap(_start, _len, _port);
-    // }
+    let virtual_addr = VirtAddr(_start);
+    // 对齐 / 其余位为0 / 有意义内存
+    if virtual_addr.aligned() && (_port & !0x7 == 0) && (_port & 0x7 != 0) {
+        return mmap(_start, _len, _port)
+    }
     -1
 }
 
