@@ -105,7 +105,7 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     mmap(_start, _len, _port)
 }
 
-// TODO: Implement munmap.
+// munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
     let virtual_addr = VirtAddr(_start);

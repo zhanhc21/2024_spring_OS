@@ -224,7 +224,7 @@ impl TaskManager {
                     return -1
                 }
             }
-            cur.memory_set.munmap(vpn_start, vpn_end);
+            cur.memory_set.munmap(vpn_start);
             vpn_start += 1;
         }
         0
