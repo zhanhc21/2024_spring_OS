@@ -24,7 +24,7 @@ pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 use crate::config::MAX_SYSCALL_NUM;
-use crate::mm::{MapPermission, VirtAddr};
+use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use crate::timer::get_time_ms;
 
 /// The task manager, where all the tasks are managed.
@@ -190,15 +190,14 @@ impl TaskManager {
 
         let va_start = VirtAddr(_start);
         let va_end = VirtAddr(_start + _len);
-        let mut vpn_start = va_start.floor();
+        let vpn_start = va_start.floor();
         let vpn_end = va_end.ceil();
 
-        while vpn_start != vpn_end {
-            if let Some(pte) = cur.memory_set.translate(vpn_start) {
+        for vpn in vpn_start.0 .. vpn_end.0 {
+            if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn)) {
                 if pte.is_valid() {
                     return -1
                 }
-                vpn_start.0 += 1;
             }
         }
 
@@ -296,7 +295,7 @@ pub fn get_start_time() -> usize {
 
 /// mmap
 pub fn mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    return TASK_MANAGER.mmap(_start, _len, _port)
+    TASK_MANAGER.mmap(_start, _len, _port)
 }
 
 /// munmap

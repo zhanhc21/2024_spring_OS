@@ -99,10 +99,10 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
     let virtual_addr = VirtAddr(_start);
     // 对齐 / 其余位为0 / 有意义内存
-    if virtual_addr.aligned() && (_port & !0x7 == 0) && (_port & 0x7 != 0) {
-        return mmap(_start, _len, _port)
+    if !virtual_addr.aligned() || (_port & !0x7 != 0) || (_port & 0x7 == 0) {
+        return -1;
     }
-    -1
+    mmap(_start, _len, _port)
 }
 
 // TODO: Implement munmap.
