@@ -225,8 +225,8 @@ impl TaskManager {
                 }
             }
             vpn_start += 1;
-            cur.memory_set.munmap(vpn_start);
         }
+        cur.memory_set.munmap(VirtPageNum(vpn_start), VirtPageNum(vpn_end));
         0
     }
 }
