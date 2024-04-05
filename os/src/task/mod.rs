@@ -190,19 +190,19 @@ impl TaskManager {
 
         let va_start = VirtAddr(_start);
         let va_end = VirtAddr(_start + _len);
-        let vpn_start = va_start.floor();
-        let vpn_end = va_end.ceil();
+        let mut vpn_start = va_start.floor().0;
+        let vpn_end = va_end.ceil().0;
 
-        for vpn in vpn_start.0 .. vpn_end.0 {
-            if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn)) {
+        while vpn_start != vpn_end {
+            if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn_start)) {
                 if pte.is_valid() {
                     return -1
                 }
             }
+            vpn_start += 1;
         }
-
-        let mut map_permission: MapPermission = MapPermission::from_bits_truncate((_port as u8) << 1);
-        map_permission |= MapPermission::U;
+        // port 第0位开始有效
+        let map_permission: MapPermission = MapPermission::from_bits_truncate((_port as u8) << 1) | MapPermission::U;
         cur.memory_set.insert_framed_area(va_start, va_end, map_permission);
         0
     }
