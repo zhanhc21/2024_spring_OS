@@ -196,6 +196,7 @@ impl TaskManager {
         while vpn_start != vpn_end {
             if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn_start)) {
                 if pte.is_valid() {
+                    println!(" valid \n");
                     return -1
                 }
             }
@@ -221,6 +222,7 @@ impl TaskManager {
         while vpn_start != vpn_end {
             if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn_start)) {
                 if !pte.is_valid() {
+                    println!(" invalid \n");
                     return -1
                 }
             }
