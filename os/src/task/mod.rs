@@ -198,7 +198,7 @@ impl TaskManager {
                 if pte.is_valid() {
                     return -1
                 }
-                vpn_start.step();
+                vpn_start.0 += 1;
             }
         }
 
