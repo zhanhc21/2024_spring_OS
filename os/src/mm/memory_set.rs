@@ -65,14 +65,14 @@ impl MemorySet {
     }
 
     /// 删除vpn的键值对, 更新mapArea
-    pub fn munmap(&mut self, _vpn_start: VirtPageNum, _vpn_end: VirtPageNum) {
+    pub fn munmap(&mut self, _vpn_start: usize, _vpn_end: usize) {
         for vpn in _vpn_start .. _vpn_end {
             for area in &mut self.areas {
                 let start = area.vpn_range.get_start().0;
                 let end = area.vpn_range.get_end().0;
                 // 找到vpn所在的area
                 if (start <= vpn.0) && (vpn.0 <= end) {
-                    area.unmap_one(&mut self.page_table, vpn);
+                    area.unmap_one(&mut self.page_table, VirtPageNum(vpn));
 
                 }
             }
