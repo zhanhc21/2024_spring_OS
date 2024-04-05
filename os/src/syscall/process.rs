@@ -97,21 +97,21 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 /// mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    let virtual_addr = VirtAddr(_start);
-    // 对齐 / 其余位为0 / 有意义内存
-    if virtual_addr.aligned() && (_port & !0x7 == 0) && (_port & 0x7 != 0) {
-        mmap(_start, _len, _port);
-    }
+    // let virtual_addr = VirtAddr(_start);
+    // // 对齐 / 其余位为0 / 有意义内存
+    // if virtual_addr.aligned() && (_port & !0x7 == 0) && (_port & 0x7 != 0) {
+    //     mmap(_start, _len, _port);
+    // }
     -1
 }
 
 // TODO: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    let virtual_addr = VirtAddr(_start);
-    if virtual_addr.aligned() {
-        return munmap(_start, _len)
-    }
+    // let virtual_addr = VirtAddr(_start);
+    // if virtual_addr.aligned() {
+    //     return munmap(_start, _len)
+    // }
     -1
 }
 

@@ -196,7 +196,7 @@ impl TaskManager {
         while vpn_start != vpn_end {
             let pte = cur.memory_set.translate(vpn_start).unwrap();
             if pte.is_valid() {
-                return -1;
+                return -1
             }
             vpn_start.0 += 1;
         }
