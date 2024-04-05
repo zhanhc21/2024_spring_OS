@@ -65,13 +65,13 @@ impl MemorySet {
     }
 
     /// 删除vpn的键值对
-    pub fn munmap(&mut self, start_vpn: VirtPageNum) {
+    pub fn munmap(&mut self, _vpn: usize) {
         // 若以framed方式映射, 找到所属的MapArea, 删除被映射的物理页帧 / 键值对
         for area in &mut self.areas {
-            let start = area.vpn_range.get_start();
-            let end = area.vpn_range.get_end();
-            if (start <= start_vpn) && (start_vpn <= end) {
-                area.unmap_one(&mut self.page_table, start_vpn);
+            let start = area.vpn_range.get_start().0;
+            let end = area.vpn_range.get_end().0;
+            if (start <= _vpn) && (_vpn <= end) {
+                area.unmap_one(&mut self.page_table, VirtPageNum(_vpn));
                 break;
             }
         }

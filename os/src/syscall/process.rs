@@ -3,7 +3,7 @@ use crate::{
     config::MAX_SYSCALL_NUM,
     task::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-        current_user_token, get_start_time, get_syscall_times, mmap //, munmap
+        current_user_token, get_start_time, get_syscall_times, mmap, munmap
     },
     timer::{
         get_time_ms, get_time_us
@@ -108,11 +108,12 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 // TODO: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    // let virtual_addr = VirtAddr(_start);
-    // if virtual_addr.aligned() {
-    //     return munmap(_start, _len)
-    // }
-    -1
+    let virtual_addr = VirtAddr(_start);
+    // 未对齐
+    if !virtual_addr.aligned() {
+        return -1;
+    }
+    munmap(_start, _len)
 }
 
 /// change data segment size

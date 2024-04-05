@@ -215,15 +215,16 @@ impl TaskManager {
 
         let va_start = VirtAddr(_start);
         let va_end = VirtAddr(_start + _len);
-        let mut vpn_start = va_start.floor();
-        let vpn_end = va_end.ceil();
+        let mut vpn_start = va_start.floor().0;
+        let vpn_end = va_end.ceil().0;
 
         while vpn_start != vpn_end {
-            let pte = cur.memory_set.translate(vpn_start).unwrap();
-            if !pte.is_valid() {
-                return -1
+            if let Some(pte) = cur.memory_set.translate(VirtPageNum(vpn_start)) {
+                if !pte.is_valid() {
+                    return -1
+                }
             }
-            vpn_start.0 += 1;
+            vpn_start += 1;
             cur.memory_set.munmap(vpn_start);
         }
         0
