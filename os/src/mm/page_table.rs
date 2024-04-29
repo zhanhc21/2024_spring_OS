@@ -202,6 +202,7 @@ pub fn translated_str(token: usize, ptr: *const u8) -> String {
     }
     string
 }
+
 /// Translate a ptr[u8] array through page table and return a mutable reference of T
 pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
     //trace!("into translated_refmut!");

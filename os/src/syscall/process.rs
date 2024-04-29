@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct TimeVal {
@@ -41,6 +42,17 @@ pub fn sys_yield() -> isize {
     trace!("kernel:pid[{}] sys_yield", current_task().unwrap().pid.0);
     suspend_current_and_run_next();
     0
+}
+
+/// transform addr from virtual to physical
+pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
+    let vpn = virtual_addr.floor();
+    let vpo = virtual_addr.page_offset();
+    let page_table = PageTable::from_token(current_user_token());
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let mut pa= PhysAddr::from(ppn);
+    pa.0 += vpo;
+    pa
 }
 
 pub fn sys_getpid() -> isize {
@@ -122,10 +134,20 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let physical_addr = vir_to_phy(VirtAddr(_ts as usize));
+    let physical_ts = physical_addr.0 as *mut TimeVal;
+
+    let us = get_time_us();
+    unsafe {
+        *physical_ts = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
+    }
+    0
 }
 
-/// YOUR JOB: Finish sys_task_info to pass testcases
+/// Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
@@ -133,27 +155,47 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let physical_addr = vir_to_phy(VirtAddr(_ti as usize));
+    let physical_ti = physical_addr.0 as *mut TaskInfo;
+
+    let ms = get_time_ms();
+    unsafe {
+        *physical_ti = TaskInfo {
+            status: TaskStatus::Running,
+            syscall_times: get_syscall_times(),
+            time: ms - get_start_time(),
+        };
+    }
+    0
 }
 
-/// YOUR JOB: Implement mmap.
+/// mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let virtual_addr = VirtAddr(_start);
+    // 对齐 / 其余位为0 / 有意义内存
+    if !virtual_addr.aligned() || (_port & !0x7 != 0) || (_port & 0x7 == 0) {
+        return -1;
+    }
+    mmap(_start, _len, _port)
 }
 
-/// YOUR JOB: Implement munmap.
+/// munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let virtual_addr = VirtAddr(_start);
+    // 未对齐
+    if !virtual_addr.aligned() {
+        return -1;
+    }
+    munmap(_start, _len)
 }
-
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel:pid[{}] sys_sbrk", current_task().unwrap().pid.0);

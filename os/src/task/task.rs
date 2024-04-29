@@ -68,6 +68,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Start time
+    pub start_time: usize,
+
+    /// Syscall times
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +124,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    start_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
                 })
             },
         };
