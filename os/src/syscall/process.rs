@@ -4,11 +4,12 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_refmut, translated_str, VirtAddr},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        suspend_current_and_run_next, TaskStatus, get_start_time, get_syscall_times, mmap, munmap,
     },
+    timer::{get_time_us, get_time_ms},
 };
 
 
@@ -44,16 +45,16 @@ pub fn sys_yield() -> isize {
     0
 }
 
-/// transform addr from virtual to physical
-pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
-    let vpn = virtual_addr.floor();
-    let vpo = virtual_addr.page_offset();
-    let page_table = PageTable::from_token(current_user_token());
-    let ppn = page_table.translate(vpn).unwrap().ppn();
-    let mut pa= PhysAddr::from(ppn);
-    pa.0 += vpo;
-    pa
-}
+// /// transform addr from virtual to physical
+// pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
+//     let vpn = virtual_addr.floor();
+//     let vpo = virtual_addr.page_offset();
+//     let page_table = PageTable::from_token(current_user_token());
+//     let ppn = page_table.translate(vpn).unwrap().ppn();
+//     let mut pa = PhysAddr::from(ppn);
+//     pa.0 += vpo;
+//     pa
+// }
 
 pub fn sys_getpid() -> isize {
     trace!("kernel: sys_getpid pid:{}", current_task().unwrap().pid.0);
@@ -134,16 +135,14 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    let physical_addr = vir_to_phy(VirtAddr(_ts as usize));
-    let physical_ts = physical_addr.0 as *mut TimeVal;
-
+    let physical_ts = translated_refmut(current_user_token(), _ts);
     let us = get_time_us();
-    unsafe {
-        *physical_ts = TimeVal {
-            sec: us / 1_000_000,
-            usec: us % 1_000_000,
-        };
-    }
+
+    *physical_ts = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+
     0
 }
 
@@ -155,17 +154,15 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    let physical_addr = vir_to_phy(VirtAddr(_ti as usize));
-    let physical_ti = physical_addr.0 as *mut TaskInfo;
-
+    let physical_ti = translated_refmut(current_user_token(), _ti);
     let ms = get_time_ms();
-    unsafe {
-        *physical_ti = TaskInfo {
-            status: TaskStatus::Running,
-            syscall_times: get_syscall_times(),
-            time: ms - get_start_time(),
-        };
-    }
+
+    *physical_ti = TaskInfo {
+        status: TaskStatus::Running,
+        syscall_times: get_syscall_times(),
+        time: ms - get_start_time(),
+    };
+
     0
 }
 
@@ -196,6 +193,7 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     }
     munmap(_start, _len)
 }
+
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel:pid[{}] sys_sbrk", current_task().unwrap().pid.0);

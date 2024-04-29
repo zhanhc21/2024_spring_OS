@@ -24,17 +24,19 @@ mod task;
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
 use lazy_static::*;
-pub use manager::{fetch_task, TaskManager};
+pub use manager::{fetch_task, TaskManager, add_task};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
     Processor,
 };
+use crate::mm::{VirtPageNum, VirtAddr, MapPermission};
+use crate::config::MAX_SYSCALL_NUM;
+
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
     // There must be an application running.
@@ -114,4 +116,97 @@ lazy_static! {
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+/// syscall times counter
+pub fn syscall_counter(syscall_id: usize) {
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.syscall_times[syscall_id] += 1;
+    drop(task_inner);
+}
+
+/// get syscall times of current task
+pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let task_inner = task.inner_exclusive_access();
+    let times = task_inner.syscall_times;
+    drop(task_inner);
+    // ---- release current PCB
+    times
+}
+
+/// get start time of current task
+pub fn get_start_time() -> usize {
+    // There must be an application running.
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let task_inner = task.inner_exclusive_access();
+    let start_time = task_inner.start_time;
+    drop(task_inner);
+    // ---- release current PCB
+    start_time
+}
+
+/// mmap
+pub fn mmap(_start: usize, _len: usize, _port: usize) -> isize {
+    // There must be an application running.
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let mut task_inner = task.inner_exclusive_access();
+
+    let va_start = VirtAddr(_start);
+    let va_end = VirtAddr(_start + _len);
+    let mut vpn_start = va_start.floor().0;
+    let vpn_end = va_end.ceil().0;
+
+    while vpn_start != vpn_end {
+        if let Some(pte) = task_inner.memory_set.translate(VirtPageNum(vpn_start)) {
+            if pte.is_valid() {
+                return -1;
+            }
+        }
+        vpn_start += 1;
+    }
+    // port 第0位开始有效
+    let map_permission: MapPermission = MapPermission::from_bits_truncate((_port as u8) << 1) | MapPermission::U;
+    task_inner.memory_set.insert_framed_area(va_start, va_end, map_permission);
+
+    drop(task_inner);
+    // ---- release current PCB
+    0
+}
+
+/// munmap
+pub fn munmap(_start: usize, _len: usize) -> isize {
+    // There must be an application running.
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let mut task_inner = task.inner_exclusive_access();
+
+    let va_start = VirtAddr(_start);
+    let va_end = VirtAddr(_start + _len);
+    let mut vpn_start = va_start.floor().0;
+    let vpn_end = va_end.ceil().0;
+
+    while vpn_start != vpn_end {
+        if let Some(pte) = task_inner.memory_set.translate(VirtPageNum(vpn_start)) {
+            if !pte.is_valid() {
+                return -1;
+            }
+        }
+        task_inner.memory_set.remove_area_with_start_vpn(VirtPageNum(vpn_start));
+        vpn_start += 1;
+    }
+
+    drop(task_inner);
+    // ---- release current PCB
+    0
 }

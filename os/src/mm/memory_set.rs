@@ -61,18 +61,6 @@ impl MemorySet {
         );
     }
 
-    // /// 删除vpn的键值对
-    // pub fn munmap(&mut self, _vpn: VirtPageNum) {
-    //     for i in &mut self.areas {
-    //         let area_start = i.vpn_range.get_start();
-    //         let area_end = i.vpn_range.get_end();
-    //         if (area_start <= _vpn) && (_vpn <= area_end) {
-    //             i.unmap_one(&mut self.page_table, _vpn);
-    //             break;
-    //         }
-    //     }
-    // }
-
     /// remove a area
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
         if let Some((idx, area)) = self
@@ -315,6 +303,7 @@ impl MemorySet {
         }
     }
 }
+
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
     vpn_range: VPNRange,
