@@ -131,10 +131,10 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    // trace!(
+    //     "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
     let physical_ts = translated_refmut(current_user_token(), _ts);
     let us = get_time_us();
 
@@ -150,10 +150,10 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    // trace!(
+    //     "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
     let physical_ti = translated_refmut(current_user_token(), _ti);
     let ms = get_time_ms();
 
@@ -168,10 +168,10 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 
 /// mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    // trace!(
+    //     "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
     let virtual_addr = VirtAddr(_start);
     // 对齐 / 其余位为0 / 有意义内存
     if !virtual_addr.aligned() || (_port & !0x7 != 0) || (_port & 0x7 == 0) {
@@ -182,10 +182,10 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 
 /// munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    // trace!(
+    //     "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
     let virtual_addr = VirtAddr(_start);
     // 未对齐
     if !virtual_addr.aligned() {
