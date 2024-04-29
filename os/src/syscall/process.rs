@@ -211,6 +211,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         current_task().unwrap().pid.0
     );
     let path = translated_str(current_user_token(), _path);
+
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         let parent = current_task().unwrap();
         let mut parent_inner = parent.inner_exclusive_access();
