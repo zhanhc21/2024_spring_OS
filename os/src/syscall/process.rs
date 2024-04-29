@@ -11,6 +11,7 @@ use crate::{
     },
     timer::{get_time_us, get_time_ms},
 };
+use crate::task::TaskControlBlock;
 
 
 #[repr(C)]
@@ -44,17 +45,6 @@ pub fn sys_yield() -> isize {
     suspend_current_and_run_next();
     0
 }
-
-// /// transform addr from virtual to physical
-// pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
-//     let vpn = virtual_addr.floor();
-//     let vpo = virtual_addr.page_offset();
-//     let page_table = PageTable::from_token(current_user_token());
-//     let ppn = page_table.translate(vpn).unwrap().ppn();
-//     let mut pa = PhysAddr::from(ppn);
-//     pa.0 += vpo;
-//     pa
-// }
 
 pub fn sys_getpid() -> isize {
     trace!("kernel: sys_getpid pid:{}", current_task().unwrap().pid.0);
@@ -127,14 +117,25 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     // ---- release current PCB automatically
 }
 
+// /// transform addr from virtual to physical
+// pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
+//     let vpn = virtual_addr.floor();
+//     let vpo = virtual_addr.page_offset();
+//     let page_table = PageTable::from_token(current_user_token());
+//     let ppn = page_table.translate(vpn).unwrap().ppn();
+//     let mut pa = PhysAddr::from(ppn);
+//     pa.0 += vpo;
+//     pa
+// }
+
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    // trace!(
-    //     "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-    //     current_task().unwrap().pid.0
-    // );
+    trace!(
+        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
     let physical_ts = translated_refmut(current_user_token(), _ts);
     let us = get_time_us();
 
@@ -142,7 +143,6 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         sec: us / 1_000_000,
         usec: us % 1_000_000,
     };
-
     0
 }
 
@@ -150,10 +150,10 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    // trace!(
-    //     "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
-    //     current_task().unwrap().pid.0
-    // );
+    trace!(
+        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
     let physical_ti = translated_refmut(current_user_token(), _ti);
     let ms = get_time_ms();
 
@@ -162,16 +162,15 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         syscall_times: get_syscall_times(),
         time: ms - get_start_time(),
     };
-
     0
 }
 
 /// mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    // trace!(
-    //     "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-    //     current_task().unwrap().pid.0
-    // );
+    trace!(
+        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
     let virtual_addr = VirtAddr(_start);
     // 对齐 / 其余位为0 / 有意义内存
     if !virtual_addr.aligned() || (_port & !0x7 != 0) || (_port & 0x7 == 0) {
@@ -182,10 +181,10 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 
 /// munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    // trace!(
-    //     "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-    //     current_task().unwrap().pid.0
-    // );
+    trace!(
+        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
     let virtual_addr = VirtAddr(_start);
     // 未对齐
     if !virtual_addr.aligned() {
@@ -211,7 +210,29 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let path = translated_str(current_user_token(), _path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let parent = current_task().unwrap();
+        let mut parent_inner = parent.inner_exclusive_access();
+
+        let child = Arc::new(TaskControlBlock::new(
+            data
+        ));
+
+        let mut child_inner = child.inner_exclusive_access();
+        child_inner.parent = Some(Arc::downgrade(&parent));
+        add_task(child.clone());
+
+        parent_inner.children.push(child.clone());
+
+        drop(child_inner);
+        drop(parent_inner);
+        drop(parent);
+
+        child.pid.0 as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
