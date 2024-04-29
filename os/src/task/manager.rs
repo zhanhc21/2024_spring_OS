@@ -30,7 +30,7 @@ impl TaskManager {
         let mut min_index = 0;
         // 遍历ready queue, 选择stride最小的进程调度
         for i in 0..self.ready_queue.len() {
-            let mut cur_stride = self.ready_queue[i].inner_exclusive_access().stride;
+            let cur_stride = self.ready_queue[i].inner_exclusive_access().stride;
             if cur_stride < min_stride {
                 min_stride = cur_stride;
                 min_index = i;
