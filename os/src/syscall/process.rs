@@ -230,7 +230,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         drop(parent_inner);
         drop(parent);
 
-        child.pid.0 as isize
+        child.getpid() as isize
     } else {
         -1
     }
@@ -242,5 +242,9 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _prio < 2 {
+        -1
+    }
+    current_task().unwrap().inner_exclusive_access().priority = _prio;
+    _prio
 }
