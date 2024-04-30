@@ -4,14 +4,13 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str, VirtAddr},
+    mm::{translated_refmut, translated_str, VirtAddr, PhysAddr, PageTable},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
+        add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
         suspend_current_and_run_next, TaskStatus, get_start_time, get_syscall_times, mmap, munmap,
     },
     timer::{get_time_us, get_time_ms},
 };
-use crate::task::TaskControlBlock;
 
 
 #[repr(C)]
@@ -117,16 +116,16 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     // ---- release current PCB automatically
 }
 
-// /// transform addr from virtual to physical
-// pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
-//     let vpn = virtual_addr.floor();
-//     let vpo = virtual_addr.page_offset();
-//     let page_table = PageTable::from_token(current_user_token());
-//     let ppn = page_table.translate(vpn).unwrap().ppn();
-//     let mut pa = PhysAddr::from(ppn);
-//     pa.0 += vpo;
-//     pa
-// }
+/// transform addr from virtual to physical
+pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
+    let vpn = virtual_addr.floor();
+    let vpo = virtual_addr.page_offset();
+    let page_table = PageTable::from_token(current_user_token());
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let mut pa = PhysAddr::from(ppn);
+    pa.0 += vpo;
+    pa
+}
 
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
@@ -136,13 +135,16 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    let physical_ts = translated_refmut(current_user_token(), _ts);
+    let physical_addr = vir_to_phy(VirtAddr(_ts as usize));
+    let physical_ts = physical_addr.0 as *mut TimeVal;
     let us = get_time_us();
 
-    *physical_ts = TimeVal {
-        sec: us / 1_000_000,
-        usec: us % 1_000_000,
-    };
+    unsafe {
+        *physical_ts = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
+    }
     0
 }
 
@@ -154,14 +156,17 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    let physical_ti = translated_refmut(current_user_token(), _ti);
+    let physical_addr = vir_to_phy(VirtAddr(_ti as usize));
+    let physical_ti = physical_addr.0 as *mut TaskInfo;
     let ms = get_time_ms();
 
-    *physical_ti = TaskInfo {
-        status: TaskStatus::Running,
-        syscall_times: get_syscall_times(),
-        time: ms - get_start_time(),
-    };
+    unsafe {
+        *physical_ti = TaskInfo {
+            status: TaskStatus::Running,
+            syscall_times: get_syscall_times(),
+            time: ms - get_start_time(),
+        };
+    }
     0
 }
 
