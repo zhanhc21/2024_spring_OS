@@ -39,7 +39,7 @@ stride 算法原理非常简单，但是有一个比较大的问题。例如两�
   
     impl PartialOrd for Stride {
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            let diff = (self.0 - other.0) && 0xff;
+            let diff = (self.0 - other.0) & 0xff;
             if diff <= 127 {
                 Some(Ordering::Less)
             } else if diff > 127 {
