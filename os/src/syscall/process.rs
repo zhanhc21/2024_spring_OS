@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
-    loader::get_app_data_by_name,
+    fs::{open_file, OpenFlags},
     mm::{translated_refmut, translated_str, VirtAddr, PhysAddr, PageTable},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
@@ -24,7 +24,7 @@ pub struct TimeVal {
 /// Task information
 #[allow(dead_code)]
 pub struct TaskInfo {
-    /// Task status in it's life cycle
+    /// Task status in its life cycle
     status: TaskStatus,
     /// The numbers of syscall called by task
     syscall_times: [u32; MAX_SYSCALL_NUM],
@@ -79,7 +79,7 @@ pub fn sys_exec(path: *const u8) -> isize {
 }
 
 /// If there is not a child process whose pid is same as given, return -1.
-/// Else if there is a child process but it is still running, return -2.
+/// Else if there is a child process, but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     //trace!("kernel: sys_waitpid");
     let task = current_task().unwrap();
@@ -127,9 +127,8 @@ pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
     pa
 }
 
-/// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
-/// HINT: What if [`TimeVal`] is splitted by two pages ?
+/// HINT: What if [`TimeVal`] is split by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
@@ -150,7 +149,7 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-/// HINT: What if [`TaskInfo`] is splitted by two pages ?
+/// HINT: What if [`TaskInfo`] is split by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!(
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
@@ -208,22 +207,24 @@ pub fn sys_sbrk(size: i32) -> isize {
     }
 }
 
-/// YOUR JOB: Implement spawn.
+/// Implement spawn.
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(_path: *const u8) -> isize {
     trace!(
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    let path = translated_str(current_user_token(), _path);
+    let token = current_user_token();
+    let path = translated_str(token, _path);
 
-    if let Some(data) = get_app_data_by_name(path.as_str()) {
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
         let parent = current_task().unwrap();
         let mut parent_inner = parent.inner_exclusive_access();
 
-        let child = Arc::new(TaskControlBlock::new(
-            data
-        ));
+        let child = Arc::new({
+            let v = app_inode.read_all();
+            TaskControlBlock::new(v.as_slice())
+        });
 
         let mut child_inner = child.inner_exclusive_access();
         child_inner.parent = Some(Arc::downgrade(&parent));
@@ -241,7 +242,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
     }
 }
 
-// YOUR JOB: Set task priority.
+/// Set task priority.
 pub fn sys_set_priority(_prio: isize) -> isize {
     trace!(
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
