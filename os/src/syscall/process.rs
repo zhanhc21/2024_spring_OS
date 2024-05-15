@@ -209,7 +209,6 @@ pub fn sys_sbrk(size: i32) -> isize {
     }
 }
 
-/// Implement spawn.
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(_path: *const u8) -> isize {
     trace!(
@@ -241,7 +240,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         let mut child_inner = child.inner_exclusive_access();
         // 更新 父子关系 与 fd_table
         child_inner.parent = Some(Arc::downgrade(&parent));
-        child_inner.fd_table = new_fd_table;
+        // child_inner.fd_table = new_fd_table;
         add_task(child.clone());
 
         parent_inner.children.push(child.clone());
