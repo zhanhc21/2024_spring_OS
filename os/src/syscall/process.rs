@@ -227,15 +227,15 @@ pub fn sys_spawn(_path: *const u8) -> isize {
             TaskControlBlock::new(all_data.as_slice())
         });
 
-        // copy fd table
-        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
-        for fd in parent_inner.fd_table.iter() {
-            if let Some(file) = fd {
-                new_fd_table.push(Some(file.clone()));
-            } else {
-                new_fd_table.push(None);
-            }
-        }
+        // // copy fd table
+        // let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        // for fd in parent_inner.fd_table.iter() {
+        //     if let Some(file) = fd {
+        //         new_fd_table.push(Some(file.clone()));
+        //     } else {
+        //         new_fd_table.push(None);
+        //     }
+        // }
 
         let mut child_inner = child.inner_exclusive_access();
         // 更新 父子关系 与 fd_table
