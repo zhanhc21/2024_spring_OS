@@ -1,6 +1,7 @@
 //! Process management syscalls
 //!
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
@@ -12,6 +13,7 @@ use crate::{
     },
     timer::{get_time_us, get_time_ms},
 };
+use crate::fs::File;
 
 
 #[repr(C)]
@@ -222,19 +224,30 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         let mut parent_inner = parent.inner_exclusive_access();
 
         let child = Arc::new({
-            let v = app_inode.read_all();
-            TaskControlBlock::new(v.as_slice())
+            let all_data = app_inode.read_all();
+            TaskControlBlock::new(all_data.as_slice())
         });
 
+        // copy fd table
+        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        for fd in parent_inner.fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
+
         let mut child_inner = child.inner_exclusive_access();
+        // 更新 父子关系 与 fd_table
         child_inner.parent = Some(Arc::downgrade(&parent));
+        child_inner.fd_table = new_fd_table;
         add_task(child.clone());
 
         parent_inner.children.push(child.clone());
 
         drop(child_inner);
         drop(parent_inner);
-        drop(parent);
 
         child.getpid() as isize
     } else {
