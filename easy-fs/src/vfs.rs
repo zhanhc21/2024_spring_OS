@@ -1,11 +1,9 @@
-use super::{
-    block_cache_sync_all, get_block_cache, BlockDevice, DirEntry, DiskInode, DiskInodeType,
-    EasyFileSystem, DIRENT_SZ,
-};
+use super::{block_cache_sync_all, get_block_cache, BlockDevice, DirEntry, DiskInode, DiskInodeType, EasyFileSystem, DIRENT_SZ, BLOCK_SZ};
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use spin::{Mutex, MutexGuard};
+
 /// Virtual filesystem layer over easy-fs
 pub struct Inode {
     block_id: usize,
@@ -53,7 +51,7 @@ impl Inode {
                 DIRENT_SZ,
             );
             if dirent.name() == name {
-                return Some(dirent.inode_id() as u32);
+                return Some(dirent.inode_id());
             }
         }
         None
@@ -182,5 +180,36 @@ impl Inode {
             }
         });
         block_cache_sync_all();
+    }
+
+    /// get inode
+    pub fn get_inode(&self) -> u64 {
+        let inode_size = core::mem::size_of::<DiskInode>();
+        let inodes_per_block = (BLOCK_SZ / inode_size) as u32;
+        let fs = self.fs.lock();
+        (self.block_id as u64 - fs.inode_area_start_block as u64) * inodes_per_block as u64 + (self.block_offset / inode_size) as u64
+    }
+
+    /// get mode
+    pub fn get_mode(&self) -> usize {
+        let fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| disk_inode.get_mode())
+    }
+
+    /// get nlink
+    pub fn get_nlink(&self) -> u32 {
+        let fs = self.fs.lock();
+        let mut count = 0;
+        self.read_disk_inode(|root_inode| {
+            let mut buf = DirEntry::empty();
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            for i in 0..file_count {
+                let (this_inode_block_id, this_inode_block_offset) = fs.get_disk_inode_pos(buf.inode_id());
+                if this_inode_block_id as usize == self.block_id && this_inode_block_offset == self.block_offset {
+                    count += 1;
+                }
+            }
+        });
+        count
     }
 }

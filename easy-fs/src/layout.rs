@@ -17,7 +17,7 @@ const INODE_INDIRECT2_COUNT: usize = INODE_INDIRECT1_COUNT * INODE_INDIRECT1_COU
 const DIRECT_BOUND: usize = INODE_DIRECT_COUNT;
 /// The upper bound of indirect1 inode index
 const INDIRECT1_BOUND: usize = DIRECT_BOUND + INODE_INDIRECT1_COUNT;
-/// The upper bound of indirect2 inode indexs
+/// The upper bound of indirect2 inode indexes
 #[allow(unused)]
 const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
 /// Super block of a filesystem
@@ -67,14 +67,14 @@ impl SuperBlock {
         self.magic == EFS_MAGIC
     }
 }
-/// Type of a disk inode
+/// Type of disk inode
 #[derive(PartialEq)]
 pub enum DiskInodeType {
     File,
     Directory,
 }
 
-/// A indirect block
+/// AN indirect block
 type IndirectBlock = [u32; BLOCK_SZ / 4];
 /// A data block
 type DataBlock = [u8; BLOCK_SZ];
@@ -161,7 +161,7 @@ impl DiskInode {
                 })
         }
     }
-    /// Inncrease the size of current disk inode
+    /// Increase the size of current disk inode
     pub fn increase_size(
         &mut self,
         new_size: u32,
@@ -386,6 +386,14 @@ impl DiskInode {
             start = end_current_block;
         }
         write_size
+    }
+
+    /// get mode
+    pub fn get_mode(&self) -> usize {
+        match self.type_ {
+            DiskInodeType::File => 0,
+            DiskInodeType::Directory => 1,
+        }
     }
 }
 /// A directory entry
