@@ -192,7 +192,7 @@ impl Inode {
 
     /// get mode
     pub fn get_mode(&self) -> usize {
-        let fs = self.fs.lock();
+        let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| disk_inode.get_mode())
     }
 
@@ -201,9 +201,9 @@ impl Inode {
         let fs = self.fs.lock();
         let mut count = 0;
         self.read_disk_inode(|root_inode| {
-            let mut buf = DirEntry::empty();
+            let buf = DirEntry::empty();
             let file_count = (root_inode.size as usize) / DIRENT_SZ;
-            for i in 0..file_count {
+            for _i in 0..file_count {
                 let (this_inode_block_id, this_inode_block_offset) = fs.get_disk_inode_pos(buf.inode_id());
                 if this_inode_block_id as usize == self.block_id && this_inode_block_offset == self.block_offset {
                     count += 1;
