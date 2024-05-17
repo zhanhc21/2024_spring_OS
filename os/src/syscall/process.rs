@@ -315,7 +315,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
                 })
             },
         });
-        /// add child
+        // add child
         parent_inner.children.push(task_control_block.clone());
         // prepare TrapContext in user space
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
@@ -326,8 +326,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
             kernel_stack_top,
             trap_handler as usize,
         );
-        let pid = task_control_block.pid.0 as isize;
-        add_task(task_control_block);
+        add_task(task_control_block.clone());
 
         drop(parent_inner);
         task_control_block.getpid() as isize
