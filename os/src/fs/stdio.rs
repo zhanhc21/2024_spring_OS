@@ -40,7 +40,7 @@ impl File for Stdin {
         panic!("Cannot write to stdin!");
     }
 
-    fn fstat(&self, stat: &mut Stat) -> isize {
+    fn fstat(&self, _stat: &mut Stat) -> isize {
         -1
     }
 }
@@ -62,7 +62,7 @@ impl File for Stdout {
         user_buf.len()
     }
 
-    fn fstat(&self, stat: &mut Stat) -> isize {
+    fn fstat(&self, _stat: &mut Stat) -> isize {
         -1
     }
 }

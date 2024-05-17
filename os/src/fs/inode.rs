@@ -160,7 +160,7 @@ impl File for OSInode {
         let inner = self.inner.exclusive_access();
         stat.dev = 0;
         stat.ino = inner.inode.get_inode();
-        match inner.inode.get_type() {
+        match inner.inode.get_mode() {
             0 => stat.mode = StatMode::FILE,
             1 => stat.mode = StatMode::DIR,
             _ => stat.mode = StatMode::NULL,

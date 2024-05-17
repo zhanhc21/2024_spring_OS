@@ -82,7 +82,7 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
         current_task().unwrap().pid.0
     );
     let task = current_task().unwrap();
-    let mut inner = task.inner_exclusive_access();
+    let inner = task.inner_exclusive_access();
     if _fd >= inner.fd_table.len() {
         return -1;
     }
