@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
-    fs::{open_file, OpenFlags},
+    fs::{open_file, OpenFlags, File},
     mm::{translated_refmut, translated_str, VirtAddr, PhysAddr, PageTable},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
@@ -13,7 +13,6 @@ use crate::{
     },
     timer::{get_time_us, get_time_ms},
 };
-use crate::fs::File;
 
 
 #[repr(C)]
@@ -227,23 +226,27 @@ pub fn sys_spawn(_path: *const u8) -> isize {
             TaskControlBlock::new(all_data.as_slice())
         });
 
-        // // copy fd table
-        // let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
-        // for fd in parent_inner.fd_table.iter() {
-        //     if let Some(file) = fd {
-        //         new_fd_table.push(Some(file.clone()));
-        //     } else {
-        //         new_fd_table.push(None);
-        //     }
-        // }
-
         let mut child_inner = child.inner_exclusive_access();
-        // 更新 父子关系 与 fd_table
+
+        // copy fd table
+        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        for fd in parent_inner.fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
+
+        // 更新 base_size, parent, fd_table, heap, brk
+        child_inner.base_size = parent_inner.base_size;
         child_inner.parent = Some(Arc::downgrade(&parent));
-        // child_inner.fd_table = new_fd_table;
-        add_task(child.clone());
+        child_inner.fd_table = new_fd_table;
+        child_inner.heap_bottom = parent_inner.heap_bottom;
+        child_inner.program_brk = parent_inner.program_brk;
 
         parent_inner.children.push(child.clone());
+        add_task(child.clone());
 
         drop(child_inner);
         drop(parent_inner);
@@ -257,7 +260,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
 /// Set task priority.
 pub fn sys_set_priority(_prio: isize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",ch5
         current_task().unwrap().pid.0
     );
     if _prio < 2 {
