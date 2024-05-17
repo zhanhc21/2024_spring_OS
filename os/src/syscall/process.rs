@@ -10,9 +10,15 @@ use crate::{
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
         suspend_current_and_run_next, TaskStatus, get_start_time, get_syscall_times, mmap, munmap,
+        TaskControlBlockInner
     },
     timer::{get_time_us, get_time_ms},
 };
+use crate::config::TRAP_CONTEXT_BASE;
+use crate::mm::{KERNEL_SPACE, MemorySet};
+use crate::sync::UPSafeCell;
+use crate::task::{kstack_alloc, pid_alloc, TaskContext};
+use crate::trap::{trap_handler, TrapContext};
 
 
 #[repr(C)]
@@ -210,6 +216,51 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(_path: *const u8) -> isize {
+    // trace!(
+    //     "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
+    //     current_task().unwrap().pid.0
+    // );
+    // let token = current_user_token();
+    // let path = translated_str(token, _path);
+    //
+    // if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+    //     let parent = current_task().unwrap();
+    //     let mut parent_inner = parent.inner_exclusive_access();
+    //
+    //     let child = Arc::new({
+    //         let all_data = app_inode.read_all();
+    //         TaskControlBlock::new(all_data.as_slice())
+    //     });
+    //
+    //     let mut child_inner = child.inner_exclusive_access();
+    //
+    //     // copy fd table
+    //     let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+    //     for fd in parent_inner.fd_table.iter() {
+    //         if let Some(file) = fd {
+    //             new_fd_table.push(Some(file.clone()));
+    //         } else {
+    //             new_fd_table.push(None);
+    //         }
+    //     }
+    //
+    //     // 更新 base_size, parent, fd_table, heap, brk
+    //     child_inner.base_size = parent_inner.base_size;
+    //     child_inner.parent = Some(Arc::downgrade(&parent));
+    //     child_inner.fd_table = new_fd_table;
+    //     child_inner.heap_bottom = parent_inner.heap_bottom;
+    //     child_inner.program_brk = parent_inner.program_brk;
+    //
+    //     parent_inner.children.push(child.clone());
+    //     add_task(child.clone());
+    //
+    //     drop(child_inner);
+    //     drop(parent_inner);
+    //
+    //     child.getpid() as isize
+    // } else {
+    //     -1
+    // }
     trace!(
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
@@ -221,13 +272,17 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         let parent = current_task().unwrap();
         let mut parent_inner = parent.inner_exclusive_access();
 
-        let child = Arc::new({
-            let all_data = app_inode.read_all();
-            TaskControlBlock::new(all_data.as_slice())
-        });
-
-        let mut child_inner = child.inner_exclusive_access();
-
+        let all_data = app_inode.read_all();
+        // memory_set with elf program headers/trampoline/trap context/user stack
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(all_data.as_slice());
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT_BASE).into())
+            .unwrap()
+            .ppn();
+        // alloc a pid and a kernel stack in kernel space
+        let pid_handle = pid_alloc();
+        let kernel_stack = kstack_alloc();
+        let kernel_stack_top = kernel_stack.get_top();
         // copy fd table
         let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
         for fd in parent_inner.fd_table.iter() {
@@ -237,21 +292,45 @@ pub fn sys_spawn(_path: *const u8) -> isize {
                 new_fd_table.push(None);
             }
         }
+        let task_control_block = Arc::new(TaskControlBlock {
+            pid: pid_handle,
+            kernel_stack,
+            inner: unsafe {
+                UPSafeCell::new(TaskControlBlockInner {
+                    trap_cx_ppn,
+                    base_size: parent_inner.base_size,
+                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                    task_status: TaskStatus::Ready,
+                    memory_set,
+                    parent: Some(Arc::downgrade(&parent)),
+                    children: Vec::new(),
+                    exit_code: 0,
+                    fd_table: new_fd_table,
+                    heap_bottom: parent_inner.heap_bottom,
+                    program_brk: parent_inner.program_brk,
+                    start_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    stride: 0,
+                    priority: 16,
+                })
+            },
+        });
+        /// add child
+        parent_inner.children.push(task_control_block.clone());
+        // prepare TrapContext in user space
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+        *trap_cx = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
+            trap_handler as usize,
+        );
+        let pid = task_control_block.pid.0 as isize;
+        add_task(task_control_block);
 
-        // 更新 base_size, parent, fd_table, heap, brk
-        child_inner.base_size = parent_inner.base_size;
-        child_inner.parent = Some(Arc::downgrade(&parent));
-        child_inner.fd_table = new_fd_table;
-        child_inner.heap_bottom = parent_inner.heap_bottom;
-        child_inner.program_brk = parent_inner.program_brk;
-
-        parent_inner.children.push(child.clone());
-        add_task(child.clone());
-
-        drop(child_inner);
         drop(parent_inner);
-
-        child.getpid() as isize
+        task_control_block.getpid() as isize
     } else {
         -1
     }
