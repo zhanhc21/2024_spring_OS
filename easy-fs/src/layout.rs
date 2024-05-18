@@ -20,6 +20,7 @@ const INDIRECT1_BOUND: usize = DIRECT_BOUND + INODE_INDIRECT1_COUNT;
 /// The upper bound of indirect2 inode indexes
 #[allow(unused)]
 const INDIRECT2_BOUND: usize = INDIRECT1_BOUND + INODE_INDIRECT2_COUNT;
+
 /// Super block of a filesystem
 #[repr(C)]
 pub struct SuperBlock {
@@ -67,6 +68,7 @@ impl SuperBlock {
         self.magic == EFS_MAGIC
     }
 }
+
 /// Type of disk inode
 #[derive(PartialEq)]
 pub enum DiskInodeType {
@@ -78,6 +80,7 @@ pub enum DiskInodeType {
 type IndirectBlock = [u32; BLOCK_SZ / 4];
 /// A data block
 type DataBlock = [u8; BLOCK_SZ];
+
 /// A disk inode
 #[repr(C)]
 pub struct DiskInode {
@@ -99,6 +102,7 @@ impl DiskInode {
         self.indirect1 = 0;
         self.indirect2 = 0;
         self.type_ = type_;
+        self.nlink = 1;
     }
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
@@ -163,6 +167,7 @@ impl DiskInode {
                 })
         }
     }
+
     /// Increase the size of current disk inode
     pub fn increase_size(
         &mut self,
@@ -310,6 +315,25 @@ impl DiskInode {
         self.indirect2 = 0;
         v
     }
+
+    // /// decrease size of current disk inode
+    // pub fn decrease_size(
+    //     &mut self,
+    //     new_size: u32,
+    //     new_blocks: Vec<u32>,
+    //     block_device: &Arc<dyn BlockDevice>)
+    // {
+    //     let mut current_blocks = self.data_blocks();
+    //     self.size = new_size;
+    //     let mut total_blocks = self.data_blocks();
+    //     let mut new_blocks = new_blocks.into_iter();
+    //     // fill direct
+    //     while current_blocks < total_blocks.min(INODE_DIRECT_COUNT as u32) {
+    //         self.direct[current_blocks as usize] = new_blocks.next().unwrap();
+    //         current_blocks += 1;
+    //     }
+    // }
+
     /// Read data from current disk inode
     pub fn read_at(
         &self,
@@ -335,11 +359,11 @@ impl DiskInode {
                 self.get_block_id(start_block as u32, block_device) as usize,
                 Arc::clone(block_device),
             )
-            .lock()
-            .read(0, |data_block: &DataBlock| {
-                let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];
-                dst.copy_from_slice(src);
-            });
+                .lock()
+                .read(0, |data_block: &DataBlock| {
+                    let src = &data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_read_size];
+                    dst.copy_from_slice(src);
+                });
             read_size += block_read_size;
             // move to next block
             if end_current_block == end {
@@ -373,12 +397,12 @@ impl DiskInode {
                 self.get_block_id(start_block as u32, block_device) as usize,
                 Arc::clone(block_device),
             )
-            .lock()
-            .modify(0, |data_block: &mut DataBlock| {
-                let src = &buf[write_size..write_size + block_write_size];
-                let dst = &mut data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_write_size];
-                dst.copy_from_slice(src);
-            });
+                .lock()
+                .modify(0, |data_block: &mut DataBlock| {
+                    let src = &buf[write_size..write_size + block_write_size];
+                    let dst = &mut data_block[start % BLOCK_SZ..start % BLOCK_SZ + block_write_size];
+                    dst.copy_from_slice(src);
+                });
             write_size += block_write_size;
             // move to next block
             if end_current_block == end {
@@ -398,12 +422,14 @@ impl DiskInode {
         }
     }
 }
+
 /// A directory entry
 #[repr(C)]
 pub struct DirEntry {
     name: [u8; NAME_LENGTH_LIMIT + 1],
     inode_id: u32,
 }
+
 /// Size of a directory entry
 pub const DIRENT_SZ: usize = 32;
 

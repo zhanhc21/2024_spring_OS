@@ -1,9 +1,12 @@
 //! File trait & inode(dir, file, pipe, stdin, stdout)
 
-mod inode;
-mod stdio;
+pub use inode::{linkat, list_apps, open_file, OpenFlags, unlinkat};
+pub use stdio::{Stdin, Stdout};
 
 use crate::mm::UserBuffer;
+
+mod inode;
+mod stdio;
 
 /// trait File for all file types
 pub trait File: Send + Sync {
@@ -48,5 +51,3 @@ bitflags! {
     }
 }
 
-pub use inode::{list_apps, open_file, OSInode, OpenFlags, linkat};
-pub use stdio::{Stdin, Stdout};

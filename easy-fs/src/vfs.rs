@@ -226,17 +226,93 @@ impl Inode {
                     dirent.as_bytes(),
                     &self.block_device,
                 );
+            });
+            // 一定要drop!!!!
+            drop(fs);
+            // increase nlink
+            if let Some(inode) = self.find(old_name) {
+                inode.modify_disk_inode(|disk_inode| {
+                    disk_inode.nlink += 1;
+                })
+            }
+            block_cache_sync_all();
+            return 0;
+        }
+        -1
+    }
 
-                if let Some(inode) = self.find(old_name) {
-                    inode.modify_disk_inode(|disk_inode|{
-                        disk_inode.nlink += 1;
-                    })
+    /// unlink
+    pub fn unlinkat(&self, name: &str) -> isize {
+        let mut fs = self.fs.lock();
+
+        let op = |root_inode: &DiskInode| {
+            // assert it is a directory
+            assert!(root_inode.is_dir());
+            // has the file been created?
+            self.find_inode_id(name, root_inode)
+        };
+
+        if let Some(_inode_id) = self.read_disk_inode(op) {
+            self.modify_disk_inode(|root_inode| {
+                // assert it is a directory
+                assert!(root_inode.is_dir());
+
+                let file_count = (root_inode.size as usize) / DIRENT_SZ;
+                let mut dirent = DirEntry::empty();
+
+                // remove dirent
+                for i in 0..file_count {
+                    assert_eq!(
+                        root_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device),
+                        DIRENT_SZ,
+                    );
+                    if dirent.name() == name {
+                        if i == file_count - 1 {
+                            root_inode.size -= 1;
+                        }
+                        else {
+                            assert_eq!(
+                                root_inode.read_at(DIRENT_SZ * (file_count - 1), dirent.as_bytes_mut(), &self.block_device),
+                                DIRENT_SZ
+                            );
+                            root_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
+                            root_inode.size -= 1;
+                        }
+                        break;
+                    }
+                }
+            });
+
+            // !!!
+            // drop(fs);
+            // 用find nlink会+1 ?
+
+            let (block_id, block_offset) = fs.get_disk_inode_pos(_inode_id);
+
+            let inode = Arc::new(Self::new(
+                block_id,
+                block_offset,
+                self.fs.clone(),
+                self.block_device.clone(),
+            ));
+
+            inode.modify_disk_inode(|disk_inode| {
+                disk_inode.nlink -= 1;
+                if disk_inode.nlink == 0 {
+                    // dealloc
+                    let size = disk_inode.size;
+                    let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
+                    assert_eq!(data_blocks_dealloc.len(), DiskInode::total_blocks(size) as usize);
+                    for data_block in data_blocks_dealloc.into_iter() {
+                        fs.dealloc_data(data_block);
+                    }
                 }
             });
 
             block_cache_sync_all();
             return 0;
         }
+        // doesn't exist
         -1
     }
 }
