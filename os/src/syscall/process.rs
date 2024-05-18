@@ -1,23 +1,17 @@
 //! Process management syscalls
 //!
 use alloc::sync::Arc;
-use alloc::vec::Vec;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
-    fs::{open_file, OpenFlags, File},
+    fs::{open_file, OpenFlags},
     mm::{translated_refmut, translated_str, VirtAddr, PhysAddr, PageTable},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
+        add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next, TaskStatus, get_start_time, get_syscall_times, mmap, munmap,
     },
     timer::{get_time_us, get_time_ms},
 };
-use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{KERNEL_SPACE, MemorySet};
-use crate::sync::UPSafeCell;
-use crate::task::{kstack_alloc, pid_alloc, TaskContext};
-use crate::trap::{trap_handler, TrapContext};
 
 
 #[repr(C)]

@@ -285,7 +285,7 @@ impl TaskControlBlock {
     }
 
     /// spawn
-    pub fn spawn(&self, elf_data: &[u8]) -> Arc<TaskControlBlock> {
+    pub fn spawn(self: &Arc<TaskControlBlock>, elf_data: &[u8]) -> Arc<TaskControlBlock> {
         let mut parent_inner = self.inner_exclusive_access();
         // memory_set with elf program headers/trampoline/trap context/user stack
         let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
@@ -316,7 +316,7 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
                     task_status: TaskStatus::Ready,
                     memory_set,
-                    parent: Some(Arc::downgrade(&self)),
+                    parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
