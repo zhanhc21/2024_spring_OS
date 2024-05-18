@@ -166,6 +166,7 @@ impl File for OSInode {
             _ => stat.mode = StatMode::NULL,
         }
         stat.nlink = inner.inode.get_nlink();
+        drop(inner);
         0
     }
 }

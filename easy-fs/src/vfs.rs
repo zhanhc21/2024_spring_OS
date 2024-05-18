@@ -198,18 +198,7 @@ impl Inode {
 
     /// get nlink
     pub fn get_nlink(&self) -> u32 {
-        let fs = self.fs.lock();
-        let mut count = 0;
-        self.read_disk_inode(|root_inode| {
-            let buf = DirEntry::empty();
-            let file_count = (root_inode.size as usize) / DIRENT_SZ;
-            for _i in 0..file_count {
-                let (this_inode_block_id, this_inode_block_offset) = fs.get_disk_inode_pos(buf.inode_id());
-                if this_inode_block_id as usize == self.block_id && this_inode_block_offset == self.block_offset {
-                    count += 1;
-                }
-            }
-        });
-        count
+        let _fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| disk_inode.nlink)
     }
 }
