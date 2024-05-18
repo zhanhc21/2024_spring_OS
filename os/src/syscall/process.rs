@@ -10,7 +10,6 @@ use crate::{
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, TaskControlBlock,
         suspend_current_and_run_next, TaskStatus, get_start_time, get_syscall_times, mmap, munmap,
-        TaskControlBlockInner
     },
     timer::{get_time_us, get_time_ms},
 };
@@ -270,66 +269,9 @@ pub fn sys_spawn(_path: *const u8) -> isize {
 
     if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
         let parent = current_task().unwrap();
-        let mut parent_inner = parent.inner_exclusive_access();
-
         let all_data = app_inode.read_all();
-        // memory_set with elf program headers/trampoline/trap context/user stack
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(all_data.as_slice());
-        let trap_cx_ppn = memory_set
-            .translate(VirtAddr::from(TRAP_CONTEXT_BASE).into())
-            .unwrap()
-            .ppn();
-        // alloc a pid and a kernel stack in kernel space
-        let pid_handle = pid_alloc();
-        let kernel_stack = kstack_alloc();
-        let kernel_stack_top = kernel_stack.get_top();
-        // copy fd table
-        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
-        for fd in parent_inner.fd_table.iter() {
-            if let Some(file) = fd {
-                new_fd_table.push(Some(file.clone()));
-            } else {
-                new_fd_table.push(None);
-            }
-        }
-        let task_control_block = Arc::new(TaskControlBlock {
-            pid: pid_handle,
-            kernel_stack,
-            inner: unsafe {
-                UPSafeCell::new(TaskControlBlockInner {
-                    trap_cx_ppn,
-                    base_size: parent_inner.base_size,
-                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
-                    task_status: TaskStatus::Ready,
-                    memory_set,
-                    parent: Some(Arc::downgrade(&parent)),
-                    children: Vec::new(),
-                    exit_code: 0,
-                    fd_table: new_fd_table,
-                    heap_bottom: parent_inner.heap_bottom,
-                    program_brk: parent_inner.program_brk,
-                    start_time: 0,
-                    syscall_times: [0; MAX_SYSCALL_NUM],
-                    stride: 0,
-                    priority: 16,
-                })
-            },
-        });
-        // add child
-        parent_inner.children.push(task_control_block.clone());
-        // prepare TrapContext in user space
-        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
-        *trap_cx = TrapContext::app_init_context(
-            entry_point,
-            user_sp,
-            KERNEL_SPACE.exclusive_access().token(),
-            kernel_stack_top,
-            trap_handler as usize,
-        );
-        add_task(task_control_block.clone());
-
-        drop(parent_inner);
-        task_control_block.getpid() as isize
+        let new_task = parent.spawn(all_data.as_slice());
+        new_task.pid.0 as isize
     } else {
         -1
     }
