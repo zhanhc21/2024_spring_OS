@@ -173,7 +173,7 @@ impl File for OSInode {
         match inner.inode.get_mode() {
             0 => stat.mode = StatMode::FILE,
             1 => stat.mode = StatMode::DIR,
-            _ => stat.mode = StatMode::NULL,
+            _ => {}
         }
         stat.nlink = inner.inode.get_nlink();
         drop(inner);
