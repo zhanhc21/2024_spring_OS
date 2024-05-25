@@ -416,6 +416,8 @@ impl DiskInode {
 
     /// get mode
     pub fn get_mode(&self) -> usize {
+        // let ret = self.type_;
+        // return ret as usize;
         match self.type_ {
             DiskInodeType::File => 0,
             DiskInodeType::Directory => 1,

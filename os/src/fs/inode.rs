@@ -6,7 +6,7 @@
 //! need to wrap `OSInodeInner` into `UPSafeCell`
 use super::{File, Stat, StatMode};
 use crate::drivers::BLOCK_DEVICE;
-use crate::mm::UserBuffer;
+use crate::mm::{UserBuffer};
 use crate::sync::UPSafeCell;
 use alloc::sync::Arc;
 use alloc::vec::Vec;

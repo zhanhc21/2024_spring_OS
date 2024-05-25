@@ -243,6 +243,7 @@ impl Inode {
 
     /// unlink
     pub fn unlinkat(&self, name: &str) -> isize {
+        let Some(unlink_inode) = self.find(name) else { return -1; };
         let mut fs = self.fs.lock();
 
         let op = |root_inode: &DiskInode| {
@@ -268,7 +269,7 @@ impl Inode {
                     );
                     if dirent.name() == name {
                         if i == file_count - 1 {
-                            root_inode.size -= 1;
+                            root_inode.size -= DIRENT_SZ as u32;
                         }
                         else {
                             assert_eq!(
@@ -276,27 +277,14 @@ impl Inode {
                                 DIRENT_SZ
                             );
                             root_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
-                            root_inode.size -= 1;
+                            root_inode.size -= DIRENT_SZ as u32;
                         }
                         break;
                     }
                 }
             });
 
-            // !!!
-            // drop(fs);
-            // 用find nlink会+1 ?
-
-            let (block_id, block_offset) = fs.get_disk_inode_pos(_inode_id);
-
-            let inode = Arc::new(Self::new(
-                block_id,
-                block_offset,
-                self.fs.clone(),
-                self.block_device.clone(),
-            ));
-
-            inode.modify_disk_inode(|disk_inode| {
+            unlink_inode.modify_disk_inode(|disk_inode| {
                 disk_inode.nlink -= 1;
                 if disk_inode.nlink == 0 {
                     // dealloc
@@ -308,7 +296,6 @@ impl Inode {
                     }
                 }
             });
-
             block_cache_sync_all();
             return 0;
         }

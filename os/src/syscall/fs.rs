@@ -93,8 +93,8 @@ pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
         let file = file.clone();
         // release current task TCB manually to avoid multi-borrow
         drop(inner);
-        let stat = translated_refmut(current_user_token(), _st);
-        file.fstat(stat)
+        let _st = translated_refmut(current_user_token(), _st);
+        file.fstat(_st)
     } else {
         -1
     }

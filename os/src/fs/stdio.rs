@@ -40,7 +40,7 @@ impl File for Stdin {
         panic!("Cannot write to stdin!");
     }
 
-    fn fstat(&self, _stat: &mut Stat) -> isize {
+    fn fstat(&self, _stat: *mut Stat) -> isize {
         -1
     }
 }
