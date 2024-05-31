@@ -3,6 +3,7 @@ use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
 use alloc::vec;
+use alloc::vec::Vec;
 
 /// sleep syscall
 pub fn sys_sleep(ms: usize) -> isize {
@@ -90,7 +91,7 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     // update mutex_need / mutex_allocation
     let cur_tid = current_task().unwrap().inner_exclusive_access().res.as_ref().unwrap().tid;
     for tid in 0..process_inner.tasks.len() {
-        while process_inner.mutex_need[tid].len() < mutex_id + 1 {
+        while process_inner.mutex_need[tid].len() < (mutex_id + 1) {
             process_inner.mutex_need[tid].push(0);
             process_inner.mutex_allocation[tid].push(0);
         }
@@ -161,6 +162,14 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
     0
 }
 
+pub fn adjust(vec: &mut Vec<usize>, id: usize, num: usize) {
+    let length = id + 1;
+    if vec.len() < length {
+        vec.resize(length, 0);
+    }
+    vec[id] += num;
+}
+
 /// semaphore create syscall
 pub fn sys_semaphore_create(res_count: usize) -> isize {
     trace!(
@@ -194,20 +203,22 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
 
     // update semaphore_available
     let available = &mut process_inner.semaphore_available;
-    while available.len() < id + 1 {
+    while available.len() < (id + 1) {
         available.push(0);
     }
     available[id] = res_count;
 
     // init need / allocation
     for tid in 0..process_inner.tasks.len() {
-        while process_inner.semaphore_allocation[tid].len() < id + 1 {
+        while process_inner.semaphore_allocation[tid].len() < (id + 1) {
             process_inner.semaphore_allocation[tid].push(0);
+        }
+        while process_inner.semaphore_need[tid].len() < (id + 1) {
             process_inner.semaphore_need[tid].push(0);
         }
     }
-    drop(process_inner);
 
+    drop(process_inner);
     id as isize
 }
 
@@ -258,7 +269,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
 
     let cur_tid = current_task().unwrap().inner_exclusive_access().res.as_ref().unwrap().tid;
-    while process_inner.semaphore_need[cur_tid].len() < sem_id + 1 {
+    while process_inner.semaphore_need[cur_tid].len() < (sem_id + 1) {
         process_inner.semaphore_need[cur_tid].push(0);
     }
     // 请求加锁, 需求+1
@@ -266,44 +277,85 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
 
     // deadlock detect
     if process_inner.deadlock_detect {
+        // let mut work = process_inner.semaphore_available.clone();
+        // let mut finish = vec![false; process_inner.tasks.len()];
+        //
+        // // 是否找到符合条件的线程
+        // let mut is_found = false;
+        // for tid in 0..process_inner.tasks.len() {
+        //     while process_inner.semaphore_need[tid].len() < (sem_id + 1) {
+        //         process_inner.semaphore_need[tid].push(0);
+        //     }
+        //     let need = &process_inner.semaphore_need;
+        //     assert_ne!(need[tid].len(), 0);
+        //
+        //     if finish[tid] == false && need[tid][sem_id] <= work[sem_id] {
+        //         while process_inner.semaphore_allocation[tid].len() < (sem_id + 1) {
+        //             process_inner.semaphore_allocation[tid].push(0);
+        //         }
+        //         let allocation = &process_inner.semaphore_allocation;
+        //         assert_ne!(allocation[tid].len(), 0);
+        //
+        //         work[sem_id] += allocation[tid][sem_id];
+        //         finish[tid] = true;
+        //         is_found = true;
+        //     }
+        // }
+        // if !is_found {
+        //     // 出现死锁
+        //     if !finish.iter().all(|&value| value) {
+        //         process_inner.semaphore_need[cur_tid][sem_id] -= 1;
+        //         return -0xDEAD;
+        //     }
+        // }
+
         let mut work = process_inner.semaphore_available.clone();
-        let mut finish = vec![false; process_inner.tasks.len()];
+        let task_len = process_inner.tasks.len();
+        let mut finish = vec![false; task_len];
 
-        // 是否找到符合条件的线程
-        let mut is_found = false;
-        for tid in 0..process_inner.tasks.len() {
-            while process_inner.semaphore_need[tid].len() < sem_id + 1 {
-                process_inner.semaphore_need[tid].push(0);
-            }
-            let need = &process_inner.semaphore_need;
-            assert_ne!(need[tid].len(), 0);
+        loop {
+            let mut found = false;
 
-            if finish[tid] == false && need[tid][sem_id] <= work[sem_id] {
-                while process_inner.semaphore_allocation[tid].len() < sem_id + 1 {
-                    process_inner.semaphore_allocation[tid].push(0);
+            for task_id in 0..task_len {
+                if finish[task_id] {
+                    continue;
                 }
-                let allocation = &process_inner.semaphore_allocation;
-                assert_ne!(allocation[tid].len(), 0);
 
-                work[sem_id] += allocation[tid][sem_id];
-                finish[tid] = true;
-                is_found = true;
+                // If any semaphore's need exceeds the remaining, 'can_proceed' will be false
+                let can_proceed = !work.iter().enumerate().any(|(sem_id, &sem_remain)| {
+                    adjust(&mut process_inner.semaphore_need[task_id], sem_id, 0);
+                    process_inner.semaphore_need[task_id][sem_id] > sem_remain
+                });
+
+                if can_proceed {
+                    finish[task_id] = true;
+                    work.iter_mut().enumerate().for_each(|(pos, ptr)| {
+                        adjust(&mut process_inner.semaphore_allocation[task_id], pos, 0);
+                        *ptr += process_inner.semaphore_allocation[task_id][pos];
+                    });
+                    found = true;
+                }
+            }
+
+            if !found {
+                break;
             }
         }
-        if !is_found {
-            // 出现死锁
-            if !finish.iter().all(|&value| value) {
-                return -0xDEAD;
-            }
+
+        if finish.iter().any(|x| *x == false) {
+            // process_inner.semaphore_need[cur_tid][sem_id] -= 1;
+            return -0xDEAD;
         }
     }
 
-    process_inner.semaphore_available[sem_id] -= 1;
-    while process_inner.semaphore_allocation[cur_tid].len() < sem_id + 1 {
-        process_inner.semaphore_allocation[cur_tid].push(0);
+    if process_inner.semaphore_available[sem_id] > 0 {
+        process_inner.semaphore_available[sem_id] -= 1;
+        while process_inner.semaphore_allocation[cur_tid].len() < (sem_id + 1) {
+            process_inner.semaphore_allocation[cur_tid].push(0);
+        }
+        process_inner.semaphore_allocation[cur_tid][sem_id] += 1;
+        process_inner.semaphore_need[cur_tid][sem_id] -= 1;
     }
-    process_inner.semaphore_allocation[cur_tid][sem_id] += 1;
-    process_inner.semaphore_need[cur_tid][sem_id] -= 1;
 
     drop(process_inner);
     sem.down();
