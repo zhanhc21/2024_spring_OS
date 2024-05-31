@@ -325,7 +325,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
                 if !finish[tid] && can_proceed {
                     finish[tid] = true;
                     work.iter_mut().enumerate().for_each(|(pos, ptr)| {
-                        while process_inner.semaphore_allocation[tid].len() < (sem_id + 1) {
+                        while process_inner.semaphore_allocation[tid].len() < (pos + 1) {
                             process_inner.semaphore_allocation[tid].push(0);
                         }
                         *ptr += process_inner.semaphore_allocation[tid][pos];
