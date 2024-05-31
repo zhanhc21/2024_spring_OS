@@ -8,6 +8,8 @@ use crate::{
     },
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
+use crate::mm::{PageTable, PhysAddr, VirtAddr};
+use crate::timer::get_time_us;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -26,6 +28,7 @@ pub struct TaskInfo {
     /// Total running time of task
     time: usize,
 }
+
 /// exit syscall
 ///
 /// exit the current task and run the next task in task list
@@ -37,12 +40,14 @@ pub fn sys_exit(exit_code: i32) -> ! {
     exit_current_and_run_next(exit_code);
     panic!("Unreachable in sys_exit!");
 }
+
 /// yield syscall
 pub fn sys_yield() -> isize {
     //trace!("kernel: sys_yield");
     suspend_current_and_run_next();
     0
 }
+
 /// getpid syscall
 pub fn sys_getpid() -> isize {
     trace!(
@@ -51,6 +56,7 @@ pub fn sys_getpid() -> isize {
     );
     current_task().unwrap().process.upgrade().unwrap().getpid() as isize
 }
+
 /// fork child process syscall
 pub fn sys_fork() -> isize {
     trace!(
@@ -69,6 +75,7 @@ pub fn sys_fork() -> isize {
     trap_cx.x[10] = 0;
     new_pid as isize
 }
+
 /// exec syscall
 pub fn sys_exec(path: *const u8, mut args: *const usize) -> isize {
     trace!(
@@ -157,6 +164,19 @@ pub fn sys_kill(pid: usize, signal: u32) -> isize {
     }
 }
 
+
+/// transform addr from virtual to physical
+pub fn vir_to_phy(virtual_addr: VirtAddr) -> PhysAddr {
+    let vpn = virtual_addr.floor();
+    let vpo = virtual_addr.page_offset();
+    let page_table = PageTable::from_token(current_user_token());
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let mut pa = PhysAddr::from(ppn);
+    pa.0 += vpo;
+    pa
+}
+
+
 /// get_time syscall
 ///
 /// YOUR JOB: get time with second and microsecond
@@ -167,7 +187,17 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
-    -1
+    let physical_addr = vir_to_phy(VirtAddr(_ts as usize));
+    let physical_ts = physical_addr.0 as *mut TimeVal;
+    let us = get_time_us();
+
+    unsafe {
+        *physical_ts = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
+    }
+    0
 }
 
 /// task_info syscall
