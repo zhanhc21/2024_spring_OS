@@ -272,64 +272,30 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         let mut work = process_inner.semaphore_available.clone();
         let mut finish = vec![false; process_inner.tasks.len()];
 
-        // // 是否找到符合条件的线程
-        // loop {
-        //     let mut is_found = false;
-        //     for tid in 0..process_inner.tasks.len() {
-        //         // 遍历所有资源
-        //         let mut valid = true;
-        //         for res in work.iter().enumerate() {
-        //             while process_inner.semaphore_need[tid].len() < (res.0 + 1) {
-        //                 process_inner.semaphore_need[tid].push(0);
-        //             }
-        //             if process_inner.semaphore_need[tid][res.0] > *res.1 {
-        //                 valid = false;
-        //             }
-        //         }
-        //
-        //         if !finish[tid] && valid {
-        //             while process_inner.semaphore_allocation[tid].len() < (sem_id + 1) {
-        //                 process_inner.semaphore_allocation[tid].push(0);
-        //             }
-        //             let allocation = &process_inner.semaphore_allocation;
-        //             assert_ne!(allocation[tid].len(), 0);
-        //
-        //             work[sem_id] += allocation[tid][sem_id];
-        //             finish[tid] = true;
-        //             is_found = true;
-        //         }
-        //     }
-        //     if !is_found {
-        //         break;
-        //     }
-        // }
-        // // 出现死锁
-        // if !finish.iter().all(|&value| value) {
-        //     return -0xDEAD;
-        // }
-
         // 是否找到符合条件的线程
         loop {
             let mut is_found = false;
             for tid in 0..process_inner.tasks.len() {
-                // 遍历所有资源
-                // If any semaphore's need exceeds the remaining, 'can_proceed' will be false
-                let can_proceed = !work.iter().enumerate().any(|(sem_id, &sem_remain)| {
-                    while process_inner.semaphore_need[tid].len() < (sem_id + 1) {
+                // 遍历所有资源, 查询是否满足需求
+                let mut valid = true;
+                for (i, j) in work.iter().enumerate() {
+                    while process_inner.semaphore_need[tid].len() < (i + 1) {
                         process_inner.semaphore_need[tid].push(0);
                     }
-                    process_inner.semaphore_need[tid][sem_id] > sem_remain
-                });
+                    if process_inner.semaphore_need[tid][i] > *j {
+                        valid = false;
+                    }
+                }
 
-
-                if !finish[tid] && can_proceed {
-                    finish[tid] = true;
-                    work.iter_mut().enumerate().for_each(|(pos, ptr)| {
-                        while process_inner.semaphore_allocation[tid].len() < (pos + 1) {
+                if !finish[tid] && valid {
+                    // 遍历所有资源
+                    for (i, j) in work.iter_mut().enumerate() {
+                        while process_inner.semaphore_allocation[tid].len() < (i + 1) {
                             process_inner.semaphore_allocation[tid].push(0);
                         }
-                        *ptr += process_inner.semaphore_allocation[tid][pos];
-                    });
+                        *j += process_inner.semaphore_allocation[tid][i];
+                    }
+                    finish[tid] = true;
                     is_found = true;
                 }
             }
