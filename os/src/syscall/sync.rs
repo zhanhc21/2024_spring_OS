@@ -273,10 +273,10 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         let mut finish = vec![false; process_inner.tasks.len()];
 
         // 是否找到符合条件的线程
-        let mut is_found = false;
         loop {
+            let mut is_found = false;
             for tid in 0..process_inner.tasks.len() {
-                // 遍历所有资源, 是否足够
+                // 遍历所有资源
                 let mut valid = true;
                 for res in work.iter().enumerate() {
                     while process_inner.semaphore_need[tid].len() < (res.0 + 1) {
@@ -309,12 +309,15 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         }
     }
 
-    process_inner.semaphore_available[sem_id] -= 1;
-    while process_inner.semaphore_allocation[cur_tid].len() < (sem_id + 1) {
-        process_inner.semaphore_allocation[cur_tid].push(0);
+    // assert_ne!(process_inner.semaphore_available[sem_id], 0);
+    if process_inner.semaphore_available[sem_id] >= 1 {
+        process_inner.semaphore_available[sem_id] -= 1;
+        while process_inner.semaphore_allocation[cur_tid].len() < (sem_id + 1) {
+            process_inner.semaphore_allocation[cur_tid].push(0);
+        }
+        process_inner.semaphore_allocation[cur_tid][sem_id] += 1;
+        process_inner.semaphore_need[cur_tid][sem_id] -= 1;
     }
-    process_inner.semaphore_allocation[cur_tid][sem_id] += 1;
-    process_inner.semaphore_need[cur_tid][sem_id] -= 1;
 
     drop(process_inner);
     sem.down();
