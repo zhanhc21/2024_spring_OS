@@ -323,14 +323,13 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
 
 
                 if !finish[tid] && can_proceed {
-                    while process_inner.semaphore_allocation[tid].len() < (sem_id + 1) {
-                        process_inner.semaphore_allocation[tid].push(0);
-                    }
-                    let allocation = &process_inner.semaphore_allocation;
-                    assert_ne!(allocation[tid].len(), 0);
-
-                    work[sem_id] += allocation[tid][sem_id];
                     finish[tid] = true;
+                    work.iter_mut().enumerate().for_each(|(pos, ptr)| {
+                        while process_inner.semaphore_allocation[tid].len() < (sem_id + 1) {
+                            process_inner.semaphore_allocation[tid].push(0);
+                        }
+                        *ptr += process_inner.semaphore_allocation[tid][pos];
+                    });
                     is_found = true;
                 }
             }
