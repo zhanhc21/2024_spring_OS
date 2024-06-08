@@ -288,7 +288,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
                 }
 
                 if !finish[tid] && valid {
-                    // 遍历所有资源
+                    // 遍历所有资源, 更新work
                     for (i, j) in work.iter_mut().enumerate() {
                         while process_inner.semaphore_allocation[tid].len() < (i + 1) {
                             process_inner.semaphore_allocation[tid].push(0);
@@ -300,12 +300,12 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
                 }
             }
             if !is_found {
+                // 出现死锁
+                if !finish.iter().all(|&value| value) {
+                    return -0xDEAD;
+                }
                 break;
             }
-        }
-        // 出现死锁
-        if !finish.iter().all(|&value| value) {
-            return -0xDEAD;
         }
     }
 
