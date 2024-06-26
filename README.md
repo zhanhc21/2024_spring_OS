@@ -1,5 +1,7 @@
 # rCore-Tutorial-Code-2024S
 
+不管怎么说，有前人的代码真是太棒了（）至少比恶心人的数据库好写太多了
+
 ### Code
 - [Soure Code of labs for 2024S](https://github.com/LearningOS/rCore-Tutorial-Code-2024S)
 ### Documents
